@@ -81,7 +81,7 @@ jobs:
         shell: bash
         run: |
           cd secondChance-backend
-          node app.js > ../submission-evidence/backend.log 2>&1 &
+          JWT_SECRET="$(openssl rand -hex 32)" node app.js > ../submission-evidence/backend.log 2>&1 &
           echo $! > ../submission-evidence/backend.pid
           cd ..
           for i in {1..30}; do
@@ -102,6 +102,30 @@ jobs:
             curl -sS http://127.0.0.1:3060/api/secondchance/items
             echo
           } | tee submission-evidence/mainpage
+
+      - name: Capture registration and login evidence
+        shell: bash
+        run: |
+          TEST_EMAIL="ci-user@example.test"
+          TEST_PASSWORD="CiPass$(date +%s)Aa"
+          REGISTER_BODY="{\"email\":\"${TEST_EMAIL}\",\"firstName\":\"CI\",\"lastName\":\"User\",\"password\":\"${TEST_PASSWORD}\"}"
+          LOGIN_BODY="{\"email\":\"${TEST_EMAIL}\",\"password\":\"${TEST_PASSWORD}\"}"
+
+          {
+            echo "curl -X POST http://127.0.0.1:3060/api/auth/register -H 'Content-Type: application/json' -d '${REGISTER_BODY}'"
+            curl -sS -X POST http://127.0.0.1:3060/api/auth/register \
+              -H 'Content-Type: application/json' \
+              -d "${REGISTER_BODY}"
+            echo
+          } | tee submission-evidence/register
+
+          {
+            echo "curl -X POST http://127.0.0.1:3060/api/auth/login -H 'Content-Type: application/json' -d '${LOGIN_BODY}'"
+            curl -sS -X POST http://127.0.0.1:3060/api/auth/login \
+              -H 'Content-Type: application/json' \
+              -d "${LOGIN_BODY}"
+            echo
+          } | tee submission-evidence/login
 
       - name: Capture item detail API evidence
         shell: bash
