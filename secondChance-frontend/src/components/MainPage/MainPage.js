@@ -1,23 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {urlConfig} from '../../config';
+import { urlConfig } from '../../config';
 import { useAppContext } from '../../context/AppContext';
 
 function MainPage() {
-    const [items, setItems] = useState([])
+    const [items, setItems] = useState([]);
     const navigate = useNavigate();
     const { isLoggedIn } = useAppContext();
 
-
     useEffect(() => {
-        // fetch all items
         const fetchItems = async () => {
             try {
-                let url = `${urlConfig.backendUrl}/api/secondchance/items`
+                const url = `${urlConfig.backendUrl}/api/secondchance/items`;
                 const response = await fetch(url);
                 if (!response.ok) {
-                    //something went wrong
-                    throw new Error(`HTTP error; ${response.status}`)
+                    throw new Error(`HTTP error; ${response.status}`);
                 }
                 const data = await response.json();
                 setItems(data);
@@ -34,7 +31,11 @@ function MainPage() {
     };
 
     const handleAddItem = () => {
-        navigate(`/app/addItem`);
+        navigate('/app/addItem');
+    };
+
+    const handleGetStarted = () => {
+        navigate(isLoggedIn ? '/app' : '/app/register');
     };
 
     const formatDate = (timestamp) => {
@@ -43,23 +44,35 @@ function MainPage() {
     };
 
     const getConditionClass = (condition) => {
-        return condition === "New" ? "list-group-item-success" : "list-group-item-warning";
+        return condition === 'New' ? 'list-group-item-success' : 'list-group-item-warning';
     };
 
     return (
-        <div className="container mt-5">
-            {isLoggedIn ? (
-              <button onClick={handleAddItem}>Add Item</button>
-            ) : (
-                null
+        <div className="container mt-4">
+            <section className="text-center py-5 mb-4">
+                <h1 className="display-4 fw-bold">SecondChance</h1>
+                <p className="lead mx-auto" style={{ maxWidth: '720px' }}>
+                    Give useful household items a second life. Share what you no longer need and discover free items ready to be reused.
+                </p>
+                <button className="btn btn-primary btn-lg mt-2" onClick={handleGetStarted}>
+                    Get Started
+                </button>
+            </section>
+
+            {isLoggedIn && (
+                <div className="mb-4">
+                    <button className="btn btn-success" onClick={handleAddItem}>Add Item</button>
+                </div>
             )}
-        <div className="row">
+
+            <div className="row">
                 {items.map((item) => (
                     <div key={item.id} className="col-md-4 mb-4">
                         <div className="card product-card">
                             <div className="image-placeholder">
                                 {item.image ? (
-                                    <img src={urlConfig.backendUrl+item.image} alt={item.name} />                                ) : (
+                                    <img src={urlConfig.backendUrl + item.image} alt={item.name} />
+                                ) : (
                                     <div className="no-image-available">No Image Available</div>
                                 )}
                             </div>
