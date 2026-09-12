@@ -1,0 +1,55 @@
+name: SecondChance CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend dependencies
+        working-directory: secondChance-backend
+        run: npm install --ignore-scripts
+
+      - name: Check backend JavaScript syntax
+        run: |
+          node --check secondChance-backend/models/db.js
+          node --check secondChance-backend/routes/secondChanceItemsRoutes.js
+          node --check secondChance-backend/routes/searchRoutes.js
+          node --check secondChance-backend/routes/authRoutes.js
+          node --check secondChance-backend/app.js
+
+      - name: Verify MongoDB fixture has 16 documents
+        run: |
+          node -e "const data=require('./secondChance-backend/util/import-mongo/secondChanceItems.json'); if(data.docs.length !== 16){ console.error('Expected 16 documents, found', data.docs.length); process.exit(1); } console.log('MongoDB fixture contains 16 documents');"
+
+      - name: Verify backend rubric requirements
+        run: |
+          grep -Fq "await client.connect()" secondChance-backend/models/db.js
+          grep -Fq "upload.single('file')" secondChance-backend/routes/secondChanceItemsRoutes.js
+          grep -Fq "/api/secondchance/items" secondChance-backend/app.js
+          grep -Fq "/api/secondchance/search" secondChance-backend/app.js
+          grep -Fq "query.category = req.query.category" secondChance-backend/routes/searchRoutes.js
+
+      - name: Install sentiment dependencies
+        working-directory: sentiment
+        run: npm install --ignore-scripts
+
+      - name: Check sentiment service
+        run: |
+          node --check sentiment/index.js
+          grep -Fq "require('natural')" sentiment/index.js
+
+      - name: CI summary
+        run: echo "SecondChance CI completed successfully"
