@@ -8,6 +8,16 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    env:
+      MONGO_URL: mongodb://127.0.0.1:27017
+      MONGO_DB: secondChance
+      MONGO_COLLECTION: secondChanceItems
+
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
 
     steps:
       - name: Checkout repository
@@ -42,6 +52,75 @@ jobs:
           grep -Fq "/api/secondchance/search" secondChance-backend/app.js
           grep -Fq "query.category = req.query.category" secondChance-backend/routes/searchRoutes.js
 
+      - name: Install Mongo import dependencies
+        working-directory: secondChance-backend/util/import-mongo
+        run: npm install --ignore-scripts
+
+      - name: Wait for MongoDB
+        shell: bash
+        run: |
+          for i in {1..30}; do
+            if (echo > /dev/tcp/127.0.0.1/27017) >/dev/null 2>&1; then
+              echo "MongoDB port is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MongoDB did not become ready"
+          exit 1
+
+      - name: Import 16 MongoDB documents
+        shell: bash
+        run: |
+          mkdir -p submission-evidence
+          echo '$ cd secondChance-backend/util/import-mongo && node index.js' > submission-evidence/inserted_items
+          (cd secondChance-backend/util/import-mongo && node index.js) | tee -a submission-evidence/inserted_items
+          grep -Fq "Inserted documents: 16" submission-evidence/inserted_items
+
+      - name: Start backend API
+        shell: bash
+        run: |
+          cd secondChance-backend
+          node app.js > ../submission-evidence/backend.log 2>&1 &
+          echo $! > ../submission-evidence/backend.pid
+          cd ..
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:3060/ >/dev/null; then
+              echo "Backend API is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat submission-evidence/backend.log
+          exit 1
+
+      - name: Capture main page API evidence
+        shell: bash
+        run: |
+          {
+            echo 'curl http://127.0.0.1:3060/api/secondchance/items'
+            curl -sS http://127.0.0.1:3060/api/secondchance/items
+            echo
+          } | tee submission-evidence/mainpage
+
+      - name: Capture item detail API evidence
+        shell: bash
+        run: |
+          {
+            echo 'curl http://127.0.0.1:3060/api/secondchance/items/875'
+            curl -sS http://127.0.0.1:3060/api/secondchance/items/875
+            echo
+          } | tee submission-evidence/item_detail
+
+      - name: Capture search API evidence
+        shell: bash
+        run: |
+          {
+            echo 'curl "http://127.0.0.1:3060/api/secondchance/search?category=Kitchen"'
+            curl -sS 'http://127.0.0.1:3060/api/secondchance/search?category=Kitchen'
+            echo
+          } | tee submission-evidence/search_item
+
       - name: Install sentiment dependencies
         working-directory: sentiment
         run: npm install --ignore-scripts
@@ -50,6 +129,12 @@ jobs:
         run: |
           node --check sentiment/index.js
           grep -Fq "require('natural')" sentiment/index.js
+
+      - name: Upload submission evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: secondchance-submission-evidence
+          path: submission-evidence/
 
       - name: CI summary
         run: echo "SecondChance CI completed successfully"
